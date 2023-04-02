@@ -42,6 +42,9 @@ class IndexGraph : public Index {
 
   void GraphAdd(const float* data, unsigned n, unsigned dim, const Parameters &parameters);
   void RefineGraph(const float* data, const Parameters &parameters);
+  
+  void LoadNNFormat(const char *filename);
+  void LoadNNFormat(const char *filename, uint32_t& K);
 
  protected:
   typedef std::vector<nhood> KNNGraph;

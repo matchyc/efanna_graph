@@ -1,0 +1,12 @@
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/CMakeFiles/edit_cache.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/CMakeFiles/rebuild_cache.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/src/CMakeFiles/efanna2e.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/src/CMakeFiles/efanna2e_s.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/src/CMakeFiles/edit_cache.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/src/CMakeFiles/rebuild_cache.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/test_nndescent.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/test_nndescent_refine.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/test_kdtree_graph.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/test_faiss_graph.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/edit_cache.dir
+/home/cm/projects/ann/sigmodcontest/baseline/efanna_graph/tests/CMakeFiles/rebuild_cache.dir

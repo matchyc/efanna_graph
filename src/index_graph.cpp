@@ -32,48 +32,47 @@ void IndexGraph::join() {
   }
 }
 void IndexGraph::update(const Parameters &parameters) {
+  
+  // Get the values of S, R and L from the input parameters.
   unsigned S = parameters.Get<unsigned>("S");
   unsigned R = parameters.Get<unsigned>("R");
   unsigned L = parameters.Get<unsigned>("L");
+
+  // Clear nn_new and nn_old vectors for all nodes in parallel.
 #pragma omp parallel for
   for (unsigned i = 0; i < nd_; i++) {
-    std::vector<unsigned>().swap(graph_[i].nn_new);
-    std::vector<unsigned>().swap(graph_[i].nn_old);
-    //std::vector<unsigned>().swap(graph_[i].rnn_new);
-    //std::vector<unsigned>().swap(graph_[i].rnn_old);
-    //graph_[i].nn_new.clear();
-    //graph_[i].nn_old.clear();
-    //graph_[i].rnn_new.clear();
-    //graph_[i].rnn_old.clear();
+    graph_[i].nn_new.clear();
+    graph_[i].nn_old.clear();
   }
+
+  // Sort the pool vector, resize if necessary and update the value of M for all nodes in parallel.
 #pragma omp parallel for
   for (unsigned n = 0; n < nd_; ++n) {
     auto &nn = graph_[n];
     std::sort(nn.pool.begin(), nn.pool.end());
     if(nn.pool.size()>L)nn.pool.resize(L);
-    nn.pool.reserve(L);
+    nn.pool.shrink_to_fit();
     unsigned maxl = std::min(nn.M + S, (unsigned) nn.pool.size());
     unsigned c = 0;
     unsigned l = 0;
-    //std::sort(nn.pool.begin(), nn.pool.end());
-    //if(n==0)std::cout << nn.pool[0].distance<<","<< nn.pool[1].distance<<","<< nn.pool[2].distance<< std::endl;
     while ((l < maxl) && (c < S)) {
       if (nn.pool[l].flag) ++c;
       ++l;
     }
     nn.M = l;
   }
+
+  // Update nn_new and nn_old vectors for all nodes in parallel and make a heap for the pool vector of each node.
 #pragma omp parallel for
   for (unsigned n = 0; n < nd_; ++n) {
     auto &nnhd = graph_[n];
-    auto &nn_new = nnhd.nn_new;
-    auto &nn_old = nnhd.nn_old;
+
     for (unsigned l = 0; l < nnhd.M; ++l) {
       auto &nn = nnhd.pool[l];
       auto &nhood_o = graph_[nn.id];  // nn on the other side of the edge
 
       if (nn.flag) {
-        nn_new.push_back(nn.id);
+        nnhd.nn_new.push_back(nn.id);
         if (nn.distance > nhood_o.pool.back().distance) {
           LockGuard guard(nhood_o.lock);
           if(nhood_o.rnn_new.size() < R)nhood_o.rnn_new.push_back(n);
@@ -84,7 +83,7 @@ void IndexGraph::update(const Parameters &parameters) {
         }
         nn.flag = false;
       } else {
-        nn_old.push_back(nn.id);
+        nnhd.nn_old.push_back(nn.id);
         if (nn.distance > nhood_o.pool.back().distance) {
           LockGuard guard(nhood_o.lock);
           if(nhood_o.rnn_old.size() < R)nhood_o.rnn_old.push_back(n);
@@ -97,25 +96,36 @@ void IndexGraph::update(const Parameters &parameters) {
     }
     std::make_heap(nnhd.pool.begin(), nnhd.pool.end());
   }
+
+  // Update nn_new and nn_old vectors for all nodes in parallel, shuffle and resize rnn_new and rnn_old vectors if necessary.
 #pragma omp parallel for
   for (unsigned i = 0; i < nd_; ++i) {
     auto &nn_new = graph_[i].nn_new;
     auto &nn_old = graph_[i].nn_old;
     auto &rnn_new = graph_[i].rnn_new;
     auto &rnn_old = graph_[i].rnn_old;
+
     if (R && rnn_new.size() > R) {
       std::random_shuffle(rnn_new.begin(), rnn_new.end());
       rnn_new.resize(R);
     }
+
     nn_new.insert(nn_new.end(), rnn_new.begin(), rnn_new.end());
+
     if (R && rnn_old.size() > R) {
       std::random_shuffle(rnn_old.begin(), rnn_old.end());
       rnn_old.resize(R);
     }
+
     nn_old.insert(nn_old.end(), rnn_old.begin(), rnn_old.end());
-    if(nn_old.size() > R * 2){nn_old.resize(R * 2);nn_old.reserve(R*2);}
-    std::vector<unsigned>().swap(graph_[i].rnn_new);
-    std::vector<unsigned>().swap(graph_[i].rnn_old);
+
+    if(nn_old.size() > R * 2){
+      nn_old.resize(R * 2);
+    }
+
+    // Clear rnn_new and rnn_old vectors for the current node.
+    rnn_new.clear();
+    rnn_old.clear();
   }
 }
 
@@ -126,12 +136,16 @@ void IndexGraph::NNDescent(const Parameters &parameters) {
   std::vector<std::vector<unsigned> > acc_eval_set(_CONTROL_NUM);
   GenRandom(rng, &control_points[0], control_points.size(), nd_);
   generate_control_set(control_points, acc_eval_set, nd_);
+  // record time elapsed
+  std::chrono::high_resolution_clock::time_point t1;
+  t1 = std::chrono::high_resolution_clock::now();
   for (unsigned it = 0; it < iter; it++) {
     join();
     update(parameters);
-    //checkDup();
-    eval_recall(control_points, acc_eval_set);
-    std::cout << "iter: " << it << std::endl;
+    // checkDup();
+    // eval_recall(control_points, acc_eval_set);
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t1).count();
+    std::cout << "iter: " << it << "duration: "<< duration << std::endl;
   }
 }
 
@@ -350,10 +364,31 @@ void IndexGraph::Save(const char *filename) {
   assert(final_graph_.size() == nd_);
   unsigned GK = (unsigned) final_graph_[0].size();
   for (unsigned i = 0; i < nd_; i++) {
-    out.write((char *) &GK, sizeof(unsigned));
+    // out.write((char *) &GK, sizeof(unsigned));
     out.write((char *) final_graph_[i].data(), GK * sizeof(unsigned));
   }
+  std::cout << "Output graph saved: " << std::string(filename) << std::endl;
   out.close();
+}
+
+void IndexGraph::LoadNNFormat(const char *filename, uint32_t& K) {
+  std::ios_base::sync_with_stdio(false);
+  std::ifstream in(filename, std::ios::binary);
+  // unsigned k;
+  // in.read((char*)&k,4);
+  in.seekg(0,std::ios::end);
+  std::ios::pos_type ss = in.tellg();
+  size_t fsize = (size_t)ss;
+  size_t num = fsize / ((size_t)K) / 4;
+  in.seekg(0,std::ios::beg);
+  final_graph_.resize(num);
+  for(size_t i = 0; i < num; i++){
+    final_graph_[i].resize(K);
+    final_graph_[i].reserve(K);
+    in.read((char*)final_graph_[i].data(), K * sizeof(unsigned));
+  }
+  std::cout << "Load pre NN graph: " << final_graph_.size() << "nn: " << final_graph_[0].size() << std::endl;
+  in.close();
 }
 
 void IndexGraph::Load(const char *filename) {

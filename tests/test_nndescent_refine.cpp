@@ -25,11 +25,51 @@ void load_data(char* filename, float*& data, unsigned& num,unsigned& dim){// loa
   }
   in.close();
 }
+
+/// @brief Reading binary data vectors. Raw data store as a (N x 100)
+/// binary file.
+/// @param file_path file path of binary data
+/// @param data returned 2D data vectors
+uint32_t ReadBin(const std::string &file_path,
+            //  std::vector<std::vector<float>> &data
+            uint32_t& dim,
+            float*& data
+             ) {
+  std::cout << "Reading Data: " << file_path << std::endl;
+  std::ifstream ifs;
+  ifs.open(file_path, std::ios::binary);
+  assert(ifs.is_open());
+  uint32_t N;  // num of points
+
+  // int cols = (dim + 7)/8*8;
+  ifs.read((char *)&N, sizeof(uint32_t));
+  // data = (float*)memalign(KGRAPH_MATRIX_ALIGN, N * cols * sizeof(float));
+  data = new float[N * dim];
+  std::cout << "# of points: " << N << std::endl;
+
+  const int num_dimensions = 100;
+
+  std::vector<float> buff(num_dimensions);
+  int counter = 0;
+  while (ifs.read((char *)buff.data(), num_dimensions * sizeof(float))) {
+    // data.push_back(buff);
+    memcpy(data + counter * dim, buff.data(), num_dimensions * sizeof(float));
+    counter++;
+  }
+  
+  ifs.close();
+  std::cout << "Finish Reading Data" << std::endl;
+  return N;
+}
+
 int main(int argc, char** argv){
+  std::ios_base::sync_with_stdio(false);
   if(argc!=9){std::cout<< argv[0] <<" data_file init_graph save_graph K L iter S R"<<std::endl; exit(-1);}
   float* data_load = NULL;
   unsigned points_num, dim;
-  load_data(argv[1], data_load, points_num, dim);
+  dim = 100;
+  // load_data(argv[1], data_load, points_num, dim);
+  points_num = ReadBin(argv[1], dim, data_load);
   char* init_graph_filename = argv[2];
   char* graph_filename = argv[3];
   unsigned K = (unsigned)atoi(argv[4]);
@@ -41,8 +81,9 @@ int main(int argc, char** argv){
   efanna2e::IndexRandom init_index(dim, points_num);
   efanna2e::IndexGraph index(dim, points_num, efanna2e::L2, (efanna2e::Index*)(&init_index));
 
-  index.Load(init_graph_filename);
-
+  // index.Load(init_graph_filename);
+  index.LoadNNFormat(init_graph_filename, K);
+  std::cout << "NN-Descent refine Load graph finish." << std::endl;
   efanna2e::Parameters paras;
   paras.Set<unsigned>("K", K);
   paras.Set<unsigned>("L", L);
@@ -59,6 +100,6 @@ int main(int argc, char** argv){
   std::cout <<"Time cost: "<< diff.count() << "\n";
 
   index.Save(graph_filename);
-
+  std::cout << "Save refine nndescent finish" << std::endl;
   return 0;
 }

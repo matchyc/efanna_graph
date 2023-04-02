@@ -41,51 +41,60 @@ void IndexPQ::compute_gt_for_tune(const float* q,
 }
 
 void IndexPQ::Build(size_t n, const float *data, const Parameters &parameters) {
+  std::ios_base::sync_with_stdio(false);
   const std::string pq_index_key = parameters.Get<std::string>("pq_index_key");
   data_ = data;
+  std::cout << "Index keys: " << pq_index_key.c_str() << std::endl;
   index = faiss::index_factory(dimension_, pq_index_key.c_str());
   index->train(nd_, data_);
   index->add(nd_, data_);
+  std::cout << "faiss index add finish" << std::endl;
+  // calculate time duration
+  std::chrono::steady_clock::time_point start, end;
+  start = std::chrono::steady_clock::now();
+  if (pq_index_key != "Flat") {
+    unsigned sample_num = 100;
+    float* sample_queries = new float[dimension_ * sample_num];
+    std::vector<unsigned> tmp(sample_num);
+    std::mt19937 rng;
+    GenRandom(rng, tmp.data(), sample_num, nd_);
 
-  unsigned sample_num = 100;
-  float* sample_queries = new float[dimension_ * sample_num];
-  std::vector<unsigned> tmp(sample_num);
-  std::mt19937 rng;
-  GenRandom(rng, tmp.data(), sample_num, nd_);
-
-  for(unsigned i=0; i<tmp.size(); i++){
-    unsigned id = tmp[i];
-    memcpy(sample_queries + i * dimension_, data_ + id * dimension_, dimension_ * sizeof(float));
-  }
-
-  unsigned k = 10;
-  faiss::Index::idx_t *gt = new faiss::Index::idx_t[k * sample_num];//ground truth
-  unsigned * gt_c = new unsigned[k * sample_num];
-  compute_gt_for_tune(sample_queries, sample_num, k, gt_c);
-  for(unsigned i=0; i<k*sample_num; i++){
-    gt[i] = gt_c[i];
-  }
-  delete [] gt_c;
-  std::string selected_params;
-
-  faiss::IntersectionCriterion crit(sample_num, k);
-  crit.set_groundtruth (k, nullptr, gt);
-  crit.nnn = k; // by default, the criterion will request only 1 NN
-
-  std::cout<<"Preparing auto-tune parameters\n";
-
-  faiss::ParameterSpace params;
-  params.initialize(index);
-  faiss::OperatingPoints ops;
-  params.explore (index, sample_num, sample_queries, crit, &ops);
-  for (size_t i = 0; i < ops.optimal_pts.size(); i++) {
-    if (ops.optimal_pts[i].perf > 0.5) {
-      selected_params = ops.optimal_pts[i].key;
-      break;
+    for(unsigned i=0; i<tmp.size(); i++){
+      unsigned id = tmp[i];
+      memcpy(sample_queries + i * dimension_, data_ + id * dimension_, dimension_ * sizeof(float));
     }
-  }
 
-  std::cout<<"best parameters auto-tuned: "<<selected_params<<std::endl;
+    unsigned k = 10;
+    faiss::idx_t *gt = new faiss::idx_t[k * sample_num];//ground truth
+    unsigned * gt_c = new unsigned[k * sample_num];
+    compute_gt_for_tune(sample_queries, sample_num, k, gt_c);
+    for(unsigned i=0; i<k*sample_num; i++){
+      gt[i] = gt_c[i];
+    }
+    delete [] gt_c;
+    std::string selected_params;
+
+    faiss::IntersectionCriterion crit(sample_num, k);
+    crit.set_groundtruth (k, nullptr, gt);
+    crit.nnn = k; // by default, the criterion will request only 1 NN
+
+    std::cout<<"Preparing auto-tune parameters\n";
+
+    faiss::ParameterSpace params;
+    params.initialize(index);
+    faiss::OperatingPoints ops;
+    params.explore (index, sample_num, sample_queries, crit, &ops);
+    end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+    std::cout << "Auto-tune time: " << time_used.count() << " s" << std::endl;
+    for (size_t i = 0; i < ops.optimal_pts.size(); i++) {
+      if (ops.optimal_pts[i].perf > 0.5) {
+        selected_params = ops.optimal_pts[i].key;
+        break;
+      }
+    }
+    std::cout<<"best parameters auto-tuned: "<<selected_params<<std::endl;
+  }
   has_built = true;
 }
 
@@ -97,9 +106,12 @@ void IndexPQ::Search(
     unsigned *indices) {
   std::string search_key = parameters.Get<std::string>("pq_search_key");
   faiss::ParameterSpace f_params;
-  f_params.set_index_parameters(index, search_key.c_str());
+  // std::cout << "Search Key: " << search_key << std::endl;
+  if (search_key != "null") {
+    f_params.set_index_parameters(index, search_key.c_str());
+  }
 
-  faiss::Index::idx_t *Ids = new faiss::Index::idx_t[k];
+  faiss::idx_t *Ids = new faiss::idx_t[k];
   float *Dists = new float[k];
 
   index->search(1, query, k, Dists, Ids);

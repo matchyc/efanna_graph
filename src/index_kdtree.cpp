@@ -440,7 +440,7 @@ IndexKDtree::IndexKDtree(const size_t dimension, const size_t n, Metric m, Index
 	  assert(final_graph_.size() == nd_);
 	  unsigned GK = (unsigned) final_graph_[0].size();
 	  for (unsigned i = 0; i < nd_; i++) {
-		  out.write((char *) &GK, sizeof(unsigned));
+		//   out.write((char *) &GK, sizeof(unsigned));
 		  out.write((char *) final_graph_[i].data(), GK * sizeof(unsigned));
 	  }
 	  out.close();

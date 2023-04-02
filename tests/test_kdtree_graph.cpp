@@ -26,11 +26,49 @@ void load_data(char* filename, float*& data, unsigned& num,unsigned& dim){// loa
   in.close();
 }
 
+/// @brief Reading binary data vectors. Raw data store as a (N x 100)
+/// binary file.
+/// @param file_path file path of binary data
+/// @param data returned 2D data vectors
+uint32_t ReadBin(const std::string &file_path,
+            //  std::vector<std::vector<float>> &data
+            uint32_t& dim,
+            float*& data
+             ) {
+  std::cout << "Reading Data: " << file_path << std::endl;
+  std::ifstream ifs;
+  ifs.open(file_path, std::ios::binary);
+  assert(ifs.is_open());
+  uint32_t N;  // num of points
+
+  // int cols = (dim + 7)/8*8;
+  ifs.read((char *)&N, sizeof(uint32_t));
+  // data = (float*)memalign(KGRAPH_MATRIX_ALIGN, N * cols * sizeof(float));
+  data = new float[N * dim];
+  std::cout << "# of points: " << N << std::endl;
+
+  const int num_dimensions = 100;
+
+  std::vector<float> buff(num_dimensions);
+  int counter = 0;
+  while (ifs.read((char *)buff.data(), num_dimensions * sizeof(float))) {
+    // data.push_back(buff);
+    memcpy(data + counter * dim, buff.data(), num_dimensions * sizeof(float));
+    counter++;
+  }
+  
+  ifs.close();
+  std::cout << "Finish Reading Data" << std::endl;
+  return N;
+}
+
 int main(int argc, char** argv){
   if(argc!=6){std::cout<< argv[0] <<" data_file nTrees mLevel K saving_graph"<<std::endl; exit(-1);}
   float* data_load = NULL;
   unsigned points_num, dim;
-  load_data(argv[1], data_load, points_num, dim);
+  // load_data(argv[1], data_load, points_num, dim);
+  dim = 100;
+  points_num = ReadBin(argv[1], dim, data_load);
   char* graph_filename = argv[5];
   unsigned nTrees = (unsigned)atoi(argv[2]);
   unsigned mLevel = (unsigned)atoi(argv[3]);

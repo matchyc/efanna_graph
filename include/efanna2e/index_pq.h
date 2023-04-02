@@ -10,7 +10,11 @@
 #include "neighbor.h"
 #include "index.h"
 #include <cassert>
-
+#include <faiss/Index.h>
+#include <faiss/index_io.h>
+#include <faiss/index_factory.h>
+#include <faiss/c_api/faiss_c.h>
+#include <faiss/MetricType.h>
 namespace efanna2e {
 class IndexPQ : public Index {
  public:
@@ -32,10 +36,10 @@ class IndexPQ : public Index {
       const Parameters &parameters,
       unsigned *indices) override;
 
+  faiss::Index* index;
  protected:
 
   Index *initializer_;
-  faiss::Index* index;
   void compute_gt_for_tune(const float* q,
                            const unsigned nq,
                           const unsigned k,
